@@ -1,13 +1,29 @@
+/*
+ *    Copyright 2017 - 2018 BreadMoirai (Ton Ly)
+ *
+ *    Licensed under the Apache License, Version 2.0 (the "License");
+ *    you may not use this file except in compliance with the License.
+ *    You may obtain a copy of the License at
+ *
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *    Unless required by applicable law or agreed to in writing, software
+ *    distributed under the License is distributed on an "AS IS" BASIS,
+ *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *    See the License for the specific language governing permissions and
+ *    limitations under the License.
+ */
+
 plugins {
     id 'groovy'
     id 'java-gradle-plugin'
-    id 'com.gradle.plugin-publish' version '0.9.7'
-    id 'com.github.johnrengelman.shadow' version '1.2.4'
+    id 'com.gradle.plugin-publish' version '0.10.1'
+    id 'com.github.johnrengelman.shadow' version '2.0.4'
+    id 'maven-publish'
 }
 
-group 'com.github.breadmoirai'
-version '2.0.1'
-apply plugin: 'maven-publish'
+group = 'com.github.breadmoirai'
+version = '2.2.12'
 
 repositories {
     jcenter()
@@ -16,16 +32,27 @@ repositories {
 }
 
 dependencies {
+    compileOnly project(':ast')
+
+    implementation 'org.codehaus.groovy:groovy-all:2.5.6'
     compile 'com.squareup.okhttp3:okhttp:3.8.1'
-    compile 'com.j256.simplemagic:simplemagic:1.10'
-    compile group: 'org.json', name: 'json', version: '20170516'
+    compile group: 'org.apache.tika', name: 'tika-core', version: '1.20'
+    compile 'org.zeroturnaround:zt-exec:1.10'
+
     compileOnly 'com.gradle.publish:plugin-publish-plugin:0.9.7'
+
+//    testCompile('org.spockframework:spock-core:1.1-groovy-2.4') {
+//        exclude(group: 'org.codehaus.groovy')
+//    }
+//    testCompile(group: "org.testfx", name: "testfx-core", version: "4.0.13-alpha")
+//    testCompile(group: "org.testfx", name: "testfx-spock", version: "4.0.13-alpha")
+//    testCompile(gradleTestKit())
 }
 
 gradlePlugin {
     plugins.create('github-release') {
         id = 'com.github.breadmoirai.github-release'
-        implementationClass = 'com.github.breadmoirai.GithubReleasePlugin'
+        implementationClass = 'com.github.breadmoirai.githubreleaseplugin.GithubReleasePlugin'
     }
 }
 
@@ -35,32 +62,21 @@ pluginBundle {
     description = 'A Gradle Plugin to send Releases to Github '
     tags = ['github', 'release']
 
-    plugins.create('github-release') {
+    plugins.getByName('github-release') {
         id = 'com.github.breadmoirai.github-release'
         displayName = 'Github Release Plugin'
     }
 }
 
-shadowJar.classifier = ''
+task createPluginClasspath {
+    def outputDir = file("${buildDir}/resources/test")
 
-publishing {
-    repositories {
-        maven {
-            name = "form3releases"
-            url "s3://form3-internal/releases"
-            credentials(AwsCredentials) {
-                accessKey "${System.getenv("AWS_ACCESS_KEY_ID")}"
-                secretKey "${System.getenv("AWS_SECRET_ACCESS_KEY")}"
-            }
-        }
-    }
+    inputs.files sourceSets.test.runtimeClasspath
+    outputs.dir outputDir
 
-    publications {
-        maven(MavenPublication) {
-            groupId group
-            artifactId "github-release-gradle-plugin"
-            version project.version
-            from components.java
-        }
+    doLast {
+        outputDir.mkdirs()
+        file("${outputDir}/plugin-classpath.txt").text = sourceSets.test.runtimeClasspath.join('\n',)
     }
 }
+test.dependsOn(createPluginClasspath)
